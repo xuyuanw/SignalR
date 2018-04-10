@@ -9,6 +9,7 @@ using System.Reactive.Linq;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Loggers;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.SignalR.Internal;
 using Microsoft.AspNetCore.SignalR.Internal.Protocol;
@@ -39,7 +40,7 @@ namespace Microsoft.AspNetCore.SignalR.Microbenchmarks
                 new HubContext<TestHub>(new DefaultHubLifetimeManager<TestHub>(NullLogger<DefaultHubLifetimeManager<TestHub>>.Instance)),
                 Options.Create(new HubOptions<TestHub>()),
                 Options.Create(new HubOptions()),
-                new Logger<DefaultHubDispatcher<TestHub>>(NullLoggerFactory.Instance));
+                new BenchmarkLogger<DefaultHubDispatcher<TestHub>>());
 
             var pair = DuplexPipe.CreateConnectionPair(PipeOptions.Default, PipeOptions.Default);
             var connection = new DefaultConnectionContext(Guid.NewGuid().ToString(), pair.Application, pair.Transport);
@@ -47,6 +48,28 @@ namespace Microsoft.AspNetCore.SignalR.Microbenchmarks
             _connectionContext = new NoErrorHubConnectionContext(connection, TimeSpan.Zero, NullLoggerFactory.Instance);
 
             _connectionContext.Protocol = new FakeHubProtocol();
+        }
+
+        public class BenchmarkLogger<T> : ILogger<T>, IDisposable
+        {
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+            {
+                ConsoleLogger.Default.WriteLine(formatter(state, exception));
+            }
+
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                return logLevel >= LogLevel.Error;
+            }
+
+            public IDisposable BeginScope<TState>(TState state)
+            {
+                return this;
+            }
+
+            public void Dispose()
+            {
+            }
         }
 
         public class FakeHubProtocol : IHubProtocol
@@ -158,53 +181,53 @@ namespace Microsoft.AspNetCore.SignalR.Microbenchmarks
             }
         }
 
-        [Benchmark]
-        public Task Invocation()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "Invocation", null));
-        }
+        //[Benchmark]
+        //public Task Invocation()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "Invocation", null));
+        //}
 
-        [Benchmark]
-        public Task InvocationAsync()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationAsync", null));
-        }
+        //[Benchmark]
+        //public Task InvocationAsync()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationAsync", null));
+        //}
 
-        [Benchmark]
-        public Task InvocationReturnValue()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationReturnValue", null));
-        }
+        //[Benchmark]
+        //public Task InvocationReturnValue()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationReturnValue", null));
+        //}
 
-        [Benchmark]
-        public Task InvocationReturnAsync()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationReturnAsync", null));
-        }
+        //[Benchmark]
+        //public Task InvocationReturnAsync()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationReturnAsync", null));
+        //}
 
-        [Benchmark]
-        public Task InvocationValueTaskAsync()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationValueTaskAsync", null));
-        }
+        //[Benchmark]
+        //public Task InvocationValueTaskAsync()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new InvocationMessage("123", "InvocationValueTaskAsync", null));
+        //}
 
-        [Benchmark]
-        public Task StreamChannelReader()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new StreamInvocationMessage("123", "StreamChannelReader", null));
-        }
+        //[Benchmark]
+        //public Task StreamChannelReader()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new StreamInvocationMessage("123", "StreamChannelReader", null));
+        //}
 
-        [Benchmark]
-        public Task StreamChannelReaderAsync()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new StreamInvocationMessage("123", "StreamChannelReaderAsync", null));
-        }
+        //[Benchmark]
+        //public Task StreamChannelReaderAsync()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new StreamInvocationMessage("123", "StreamChannelReaderAsync", null));
+        //}
 
-        [Benchmark]
-        public Task StreamChannelReaderValueTaskAsync()
-        {
-            return _dispatcher.DispatchMessageAsync(_connectionContext, new StreamInvocationMessage("123", "StreamChannelReaderValueTaskAsync", null));
-        }
+        //[Benchmark]
+        //public Task StreamChannelReaderValueTaskAsync()
+        //{
+        //    return _dispatcher.DispatchMessageAsync(_connectionContext, new StreamInvocationMessage("123", "StreamChannelReaderValueTaskAsync", null));
+        //}
 
         [Benchmark]
         public Task StreamChannelReaderCount_Zero()

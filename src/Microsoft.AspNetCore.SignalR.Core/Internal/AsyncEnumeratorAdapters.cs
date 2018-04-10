@@ -11,6 +11,9 @@ namespace Microsoft.AspNetCore.SignalR.Internal
     // True-internal because this is a weird and tricky class to use :)
     internal static class AsyncEnumeratorAdapters
     {
+        private static readonly Task<bool> TrueTask = Task.FromResult(true);
+        private static readonly Task<bool> FalseTask = Task.FromResult(true);
+
         public static IAsyncEnumerator<object> GetAsyncEnumerator<T>(ChannelReader<T> channel, CancellationToken cancellationToken = default(CancellationToken))
         {
             // Nothing to dispose when we finish enumerating in this case.
@@ -40,24 +43,37 @@ namespace Microsoft.AspNetCore.SignalR.Internal
 
             public Task<bool> MoveNextAsync()
             {
+                if (_cancellationToken.IsCancellationRequested)
+                {
+                    return FalseTask;
+                }
+
                 var result = _channel.ReadAsync(_cancellationToken);
 
                 if (result.IsCompletedSuccessfully)
                 {
                     _current = result.Result;
-                    return Task.FromResult(true);
+                    return TrueTask;
                 }
 
-                return result.AsTask().ContinueWith((t, s) =>
+                return result.AsTask().ContinueWith(ReadAsyncContinueWith, this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+
+            private bool ReadAsyncContinueWith(Task<T> t, object s)
+            {
+                if (t.IsCanceled)
                 {
-                    var thisRef = (AsyncEnumerator<T>)s;
-                    if (t.IsFaulted && t.Exception.InnerException is ChannelClosedException cce && cce.InnerException == null)
-                    {
-                        return false;
-                    }
-                    thisRef._current = t.GetAwaiter().GetResult();
-                    return true;
-                }, this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.NotOnCanceled, TaskScheduler.Default);
+                    return false;
+                }
+
+                if (t.IsFaulted && t.Exception.InnerException is ChannelClosedException cce && cce.InnerException == null)
+                {
+                    return false;
+                }
+
+                var thisRef = (AsyncEnumerator<T>) s;
+                thisRef._current = t.GetAwaiter().GetResult();
+                return true;
             }
 
             public void Dispose()
