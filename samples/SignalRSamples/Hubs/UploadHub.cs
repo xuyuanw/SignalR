@@ -22,6 +22,11 @@ namespace SignalRSamples.Hubs
             return string.Format("You sent over <{0}> <{1}s>", total, word);
         }
 
+        public string Echo(string word)
+        {
+            return "Echo: " + word;
+        }
+
         public async Task<int> Sum(ChannelReader<int> source)
         {
             var total = 0;
