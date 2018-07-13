@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+import { isNull } from "util";
 import { HandshakeProtocol, HandshakeRequestMessage, HandshakeResponseMessage } from "./HandshakeProtocol";
 import { IConnection } from "./IConnection";
 import { CancelInvocationMessage, CompletionMessage, IHubProtocol, InvocationMessage, MessageType, StreamInvocationMessage, StreamItemMessage } from "./IHubProtocol";
@@ -29,6 +30,7 @@ export class HubConnection {
     private callbacks: { [invocationId: string]: (invocationEvent: StreamItemMessage | CompletionMessage | null, error?: Error) => void };
     private methods: { [name: string]: Array<(...args: any[]) => void> };
     private id: number;
+    private streamId: number;
     private closedCallbacks: Array<(error?: Error) => void>;
     private receivedHandshakeResponse: boolean;
     private connectionState: HubConnectionState;
@@ -82,6 +84,7 @@ export class HubConnection {
         this.methods = {};
         this.closedCallbacks = [];
         this.id = 0;
+        this.streamId = 0;
         this.receivedHandshakeResponse = false;
         this.connectionState = HubConnectionState.Disconnected;
 
@@ -205,6 +208,36 @@ export class HubConnection {
         return this.sendMessage(message);
     }
 
+    public newUploadStream(): any {
+        class UploadStream {
+            private connection: HubConnection;
+            private streamId: string;
+            constructor(connection: HubConnection) {
+                this.connection = connection;
+                this.streamId = (connection.streamId++).toString();
+            }
+            public sendit(o: any): Promise<void> {
+                const message = this.connection.protocol.writeMessage(o);
+                return this.connection.sendMessage(message);
+            }
+            public  write(item: any): Promise<void> {
+                return this.sendit({type: 2, invocationId: this.streamId, item});
+            }
+            public async complete(exception: string|null): Promise<void> {
+                if (isNull(exception)) {
+                    return this.sendit({ type: 8, streamId: this.streamId });
+                } else {
+                    return this.sendit({ type: 8, streamId: this.streamId, exception });
+                }
+            }
+            public asPlaceholder() {
+                return {streamId: this.streamId};
+            }
+        }
+
+        return new UploadStream(this);
+    }
+
     /** Invokes a hub method on the server using the specified name and arguments.
      *
      * The Promise returned by this method resolves when the server indicates it has finished invoking the method. When the promise
@@ -218,6 +251,12 @@ export class HubConnection {
      */
     public invoke<T = any>(methodName: string, ...args: any[]): Promise<T> {
         const invocationDescriptor = this.createInvocation(methodName, args, false);
+
+        for (let i = 0; i < args.length; i++) {
+            if (args[i].name === "UploadStream") {
+                args[i] = args[i].asPlaceholder();
+            }
+        }
 
         const p = new Promise<any>((resolve, reject) => {
             // invocationId will always have a value for a non-blocking invocation

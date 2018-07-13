@@ -100,10 +100,19 @@
                     });
                 }
                 else if (method == "Sum") {
-                    var data = new Blob(['D', 'R', 'E', 'A', 'M'], { type: 'plan/text', endings: 'native' });
-                    var promise = connection.invoke("UploadWord", data);
+                    // var data = new Blob(['D', 'R', 'E', 'A', 'M'], { type: 'plain/text', endings: 'native' });
+                    var stream = connection.newUploadStream();
+                    var promise = connection.invoke("UploadWord", stream);
+
+                    await stream.write("Z");
+                    await stream.write("O");
+                    await stream.write("O");
+                    await stream.write("P");
+                    await stream.write("!");
+                    await stream.complete();
+
                     promise.then(function (result) {
-                        alert("received response -- " + result);
+                       alert("received response -- " + result);
                     });
                 }
                 else {
