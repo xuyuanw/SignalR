@@ -41,11 +41,12 @@ public class HubConnection {
                         break;
                     case STREAM_INVOCATION:
                     case STREAM_ITEM:
-                        throw new UnsupportedOperationException("Streaming is not yet supported");
                     case CLOSE:
                     case CANCEL_INVOCATION:
                     case COMPLETION:
+                        throw new UnsupportedOperationException("Message type " + message.getMessageType() + " is not supported yet.");
                     case PING:
+
                         // We don't need to do anything in the case of a ping message.
                         // The other message types aren't supported
                         break;
