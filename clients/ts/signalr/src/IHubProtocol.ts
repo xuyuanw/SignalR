@@ -20,6 +20,8 @@ export enum MessageType {
     Ping = 6,
     /** Indicates the message is a Close message and implements the {@link CloseMessage} interface. */
     Close = 7,
+    /** Indicates the message is a StreamComplete message and implements the {@link StreamCompleteMessage} interface */
+    StreamComplete = 8,
 }
 
 /** Defines a dictionary of string keys and string values representing headers attached to a Hub message. */
@@ -134,6 +136,16 @@ export interface CancelInvocationMessage extends HubInvocationMessage {
     readonly type: MessageType.CancelInvocation;
     /** The invocation ID. */
     readonly invocationId: string;
+}
+
+/** A hub message send to indicate the end of stream items for a streaming parameter. */
+export interface StreamCompleteMessage extends HubMessageBase {
+    /** @inheritDoc */
+    readonly type: MessageType.StreamComplete;
+    /** The stream ID of the stream to be completed. */
+    readonly streamId: string;
+    /** The error that trigger completion, if any. */
+    readonly error?: string;
 }
 
 /** A protocol abstraction for communicating with SignalR Hubs.  */

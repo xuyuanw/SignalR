@@ -1,7 +1,6 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-import { isNull } from "util";
 import { HandshakeProtocol, HandshakeRequestMessage, HandshakeResponseMessage } from "./HandshakeProtocol";
 import { IConnection } from "./IConnection";
 import { CancelInvocationMessage, CompletionMessage, IHubProtocol, InvocationMessage, MessageType, StreamInvocationMessage, StreamItemMessage } from "./IHubProtocol";
@@ -150,11 +149,10 @@ export class HubConnection {
 
         const subject = new Subject<T>(() => {
             const cancelInvocation: CancelInvocationMessage = this.createCancelInvocation(invocationDescriptor.invocationId);
-            const cancelMessage: any = this.protocol.writeMessage(cancelInvocation);
 
             delete this.callbacks[invocationDescriptor.invocationId];
 
-            return this.sendMessage(cancelMessage);
+            return this.sendWithProtocol(cancelInvocation);
         });
 
         this.callbacks[invocationDescriptor.invocationId] = (invocationEvent: CompletionMessage | StreamItemMessage | null, error?: Error) => {
@@ -175,9 +173,7 @@ export class HubConnection {
             }
         };
 
-        const message = this.protocol.writeMessage(invocationDescriptor);
-
-        this.sendMessage(message)
+        this.sendWithProtocol(invocationDescriptor)
             .catch((e) => {
                 subject.error(e);
                 delete this.callbacks[invocationDescriptor.invocationId];
@@ -191,6 +187,14 @@ export class HubConnection {
         return this.connection.send(message);
     }
 
+    /**
+     * Sends a js object to the server.
+     * @param message The js object to serialize and send.
+     */
+    public sendWithProtocol(message: any) {
+        return this.sendMessage(this.protocol.writeMessage(message));
+    }
+
     /** Invokes a hub method on the server using the specified name and arguments. Does not wait for a response from the receiver.
      *
      * The Promise returned by this method resolves when the client has sent the invocation to the server. The server may still
@@ -201,40 +205,15 @@ export class HubConnection {
      * @returns {Promise<void>} A Promise that resolves when the invocation has been successfully sent, or rejects with an error.
      */
     public send(methodName: string, ...args: any[]): Promise<void> {
-        const invocationDescriptor = this.createInvocation(methodName, args, true);
-
-        const message = this.protocol.writeMessage(invocationDescriptor);
-
-        return this.sendMessage(message);
+        return this.sendWithProtocol(this.createInvocation(methodName, args, true));
     }
 
-    public newUploadStream(): any {
-        class UploadStream {
-            private connection: HubConnection;
-            private streamId: string;
-            constructor(connection: HubConnection) {
-                this.connection = connection;
-                this.streamId = (connection.streamId++).toString();
-            }
-            public sendit(o: any): Promise<void> {
-                const message = this.connection.protocol.writeMessage(o);
-                return this.connection.sendMessage(message);
-            }
-            public  write(item: any): Promise<void> {
-                return this.sendit({type: 2, invocationId: this.streamId, item});
-            }
-            public async complete(exception: string|null): Promise<void> {
-                if (isNull(exception)) {
-                    return this.sendit({ type: 8, streamId: this.streamId });
-                } else {
-                    return this.sendit({ type: 8, streamId: this.streamId, exception });
-                }
-            }
-            public asPlaceholder() {
-                return {streamId: this.streamId};
-            }
-        }
+    public nextStreamId(): string {
+        this.streamId += 1;
+        return this.streamId.toString();
+    }
 
+    public newUploadStream(): UploadStream {
         return new UploadStream(this);
     }
 
@@ -252,11 +231,11 @@ export class HubConnection {
     public invoke<T = any>(methodName: string, ...args: any[]): Promise<T> {
         const invocationDescriptor = this.createInvocation(methodName, args, false);
 
-        for (let i = 0; i < args.length; i++) {
-            if (args[i].name === "UploadStream") {
-                args[i] = args[i].asPlaceholder();
-            }
-        }
+        // for (let i = 0; i < args.length; i++) {
+        //     if (args[i].name === "UploadStream") {
+        //         args[i] = args[i].asPlaceholder();
+        //     }
+        // }
 
         const p = new Promise<any>((resolve, reject) => {
             // invocationId will always have a value for a non-blocking invocation
@@ -278,9 +257,7 @@ export class HubConnection {
                 }
             };
 
-            const message = this.protocol.writeMessage(invocationDescriptor);
-
-            this.sendMessage(message)
+            this.sendWithProtocol(invocationDescriptor)
                 .catch((e) => {
                     reject(e);
                     // invocationId will always have a value for a non-blocking invocation
@@ -547,5 +524,36 @@ export class HubConnection {
             invocationId: id,
             type: MessageType.CancelInvocation,
         };
+    }
+
+    public createStreamItem(id: string, item: any): StreamItemMessage {
+        return {
+            invocationId: id,
+            item,
+            type: MessageType.StreamItem,
+        };
+    }
+}
+
+class UploadStream {
+    private connection: HubConnection;
+    public readonly streamId: string;
+    constructor(connection: HubConnection) {
+        this.connection = connection;
+        this.streamId = connection.nextStreamId();
+    }
+    public write(item: any): Promise<void> {
+        return this.connection.sendWithProtocol(this.connection.createStreamItem(this.streamId, item));
+        // return this.connection.sendWithProtocol({type: MessageType.StreamItem, invocationId: this.streamId, item});
+    }
+    public async complete(error?: string): Promise<void> {
+        if (error) {
+            return this.connection.sendWithProtocol({ type: MessageType.StreamComplete, streamId: this.streamId, error });
+        } else {
+            return this.connection.sendWithProtocol({ type: MessageType.StreamComplete, streamId: this.streamId });
+        }
+    }
+    public asPlaceholder() {
+        return {streamId: this.streamId};
     }
 }
