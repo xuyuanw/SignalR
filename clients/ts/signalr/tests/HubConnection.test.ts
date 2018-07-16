@@ -288,7 +288,7 @@ describe("HubConnection", () => {
             });
         });
 
-        it.only("is able to send stream items to server", async () => {
+        it("is able to send stream items to server", async () => {
             await VerifyLogger.run(async (logger) => {
                 const connection = new TestConnection();
                 const hubConnection = createHubConnection(connection, logger);
@@ -301,14 +301,14 @@ describe("HubConnection", () => {
                         arguments: ["arg", {streamId: "1"}],
                         invocationId: "0",
                         target: "testMethod",
-                        type: 1,
+                        type: MessageType.Invocation,
                     });
 
                     await stream.write("item numero uno");
                     expect(JSON.parse(connection.sentData[1])).toEqual({
-                        invocationId: "1",
                         item: "item numero uno",
-                        type: 2,
+                        streamId: "1",
+                        type: MessageType.ParameterStream,
                     });
 
                     connection.receive({ type: MessageType.Completion, invocationId: connection.lastInvocationId, result: "foo" });
