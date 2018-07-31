@@ -2,10 +2,12 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
@@ -14,53 +16,20 @@ namespace SignalRSamples.Hubs
 {
     public class UploadHub : Hub
     {
-        public async Task<string> DoubleStreamUpload(ChannelReader<string> letters, ChannelReader<int> numbers)
-        {
-            var total = await Sum(numbers);
-            var word = await UploadWord(letters);
-
-            return string.Format("You sent over <{0}> <{1}s>", total, word);
-        }
 
         public string Echo(string word)
         {
             return "Echo: " + word;
         }
 
-        public async Task<int> Sum(ChannelReader<int> source)
-        {
-            var total = 0;
-            while (await source.WaitToReadAsync())
-            {
-                while (source.TryRead(out var item))
-                {
-                    total += item;
-                }
-            }
-            return total;
-        }
-
-        public async Task LocalSum(ChannelReader<int> source)
-        {
-            var total = 0;
-            while (await source.WaitToReadAsync())
-            {
-                while (source.TryRead(out var item))
-                {
-                    total += item;
-                }
-            }
-            Debug.WriteLine(String.Format("Complete, your total is <{0}>.", total));
-        }
-
         public async Task<string> UploadWord(ChannelReader<string> source)
         {
-            var sb = new StringBuilder();
+            StringBuilder sb = new StringBuilder();
 
             // receiving a StreamCompleteMessage should cause this WaitToRead to return false
             while (await source.WaitToReadAsync())
             {
-                while (source.TryRead(out var item))
+                while (source.TryRead(out string item))
                 {
                     Debug.WriteLine($"received: {item}");
                     Console.WriteLine($"received: {item}");
@@ -72,33 +41,39 @@ namespace SignalRSamples.Hubs
             return sb.ToString();
         }
 
-        public async Task<string> UploadWithSuffix(ChannelReader<string> source, string suffix)
+        public async Task<string> ScoreTracker(ChannelReader<int> player1, ChannelReader<int> player2)
         {
-            var sb = new StringBuilder();
+            var p1score = await Loop(player1);
+            var p2score = await Loop(player2);
 
-            while (await source.WaitToReadAsync())
+            var winner = p1score > p2score ? "p1" : "p2";
+            return $"{winner} wins with a total of {Math.Max(p1score, p2score)} points to {Math.Min(p1score, p2score)}"; 
+
+            async Task<int> Loop(ChannelReader<int> reader)
             {
-                while (source.TryRead(out var item))
+                var score = 0;
+
+                while (await reader.WaitToReadAsync())
                 {
-                    await Task.Delay(50);
-                    Debug.WriteLine($"received: {item}");
-                    sb.Append(item);
+                    while (reader.TryRead(out int item))
+                    {
+                        Debug.WriteLine($"got score {item}");
+                        score += item;
+                    }
                 }
+
+                return score;
             }
-
-            sb.Append(suffix);
-
-            return sb.ToString();
         }
 
-        public async Task<string> UploadFile(ChannelReader<byte[]> source, string filepath)
+        public async Task UploadFile(string filepath, ChannelReader<byte[]> source)
         {
-            var result = Enumerable.Empty<byte>();
+            IEnumerable<byte> result = Enumerable.Empty<byte>();
             int chunk = 1;
 
             while (await source.WaitToReadAsync())
             {
-                while (source.TryRead(out var item))
+                while (source.TryRead(out byte[] item))
                 {
                     Debug.WriteLine($"received chunk #{chunk++}");
                     result = result.Concat(item);  // atrocious
@@ -107,9 +82,6 @@ namespace SignalRSamples.Hubs
             }
 
             File.WriteAllBytes(filepath, result.ToArray());
-
-            Debug.WriteLine("returning status code");
-            return $"file written to '{filepath}'";
         }
     }
 }

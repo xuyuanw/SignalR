@@ -445,7 +445,7 @@ namespace Microsoft.AspNetCore.SignalR.Client
 
         private Dictionary<string, object> PackageStreamingParams(object[] args)
         {
-            // lazy initialized, to avoid allocation unecessary dictionaries
+            // lazy initialized, to avoid allocating unecessary dictionaries
             Dictionary<string, object> readers = null;
 
             for (var i = 0; i < args.Length; i++)
