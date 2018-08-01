@@ -2585,13 +2585,12 @@ namespace Microsoft.AspNetCore.SignalR.Tests
         [Fact]
         public async Task UploadStreamCompleteWithError()
         {
-
             var serviceProvider = HubConnectionHandlerTestUtils.CreateServiceProvider();
             var connectionHandler = serviceProvider.GetService<HubConnectionHandler<MethodHub>>();
 
             using (var client = new TestClient())
             {
-                var connectionHandlerTask = await client.ConnectAsync(connectionHandler).OrTimeout();
+                await client.ConnectAsync(connectionHandler).OrTimeout();
                 await client.BeginUploadStreamAsync("invocation", nameof(MethodHub.TestCustomErrorPassing), new StreamPlaceholder("id")).OrTimeout();
                 await client.SendHubMessageAsync(new StreamCompleteMessage("id", CustomErrorMessage)).OrTimeout();
 

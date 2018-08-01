@@ -83,5 +83,26 @@ namespace SignalRSamples.Hubs
 
             File.WriteAllBytes(filepath, result.ToArray());
         }
+
+        public ChannelReader<string> StreamEcho(ChannelReader<string> source)
+        {
+            var output = Channel.CreateUnbounded<string>();
+
+            _ = Task.Run(async () =>
+            {
+                while (await source.WaitToReadAsync())
+                {
+                    while (source.TryRead(out var item))
+                    {
+                        Debug.WriteLine($"Echoing '{item}'.");
+                        await output.Writer.WriteAsync("echo:" + item);
+                    }
+                }
+                output.Writer.Complete();
+
+            });
+
+            return output.Reader;
+        }
     }
 }

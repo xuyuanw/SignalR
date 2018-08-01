@@ -417,6 +417,8 @@ namespace Microsoft.AspNetCore.SignalR.Client
                 irq.Dispose();
             }
 
+            var readers = PackageStreamingParams(args);
+
             CheckDisposed();
             await WaitConnectionLockAsync();
 
@@ -439,6 +441,8 @@ namespace Microsoft.AspNetCore.SignalR.Client
             {
                 ReleaseConnectionLock();
             }
+
+            LaunchStreams(readers, cancellationToken);
 
             return channel;
         }

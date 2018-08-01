@@ -33,8 +33,9 @@ namespace ClientSample
             await connection.StartAsync();
 
             //await BasicInvoke(connection);
-            await ScoreTrackerExample(connection);
+            //await ScoreTrackerExample(connection);
             //await FileUploadExample(connection);
+            await StreamingEcho(connection);
 
             return 0;
         }
@@ -135,6 +136,29 @@ namespace ClientSample
                 byte[] chunk = new byte[chunkSize];
                 position += fileStream.Read(chunk, 0, chunk.Length);
                 yield return chunk;
+            }
+        }
+
+        public static async Task StreamingEcho(HubConnection connection)
+        {
+            var channel = Channel.CreateUnbounded<string>();
+
+            _ = Task.Run(async () =>
+            {
+                foreach (var phrase in new[] { "one fish", "two fish", "red fish", "blue fish" })
+                {
+                    await channel.Writer.WriteAsync(phrase);
+                }
+            });
+
+            var outputs = await connection.StreamAsChannelAsync<string>("StreamEcho", channel.Reader);
+
+            while (await outputs.WaitToReadAsync())
+            {
+                while (outputs.TryRead(out var item))
+                {
+                    Debug.WriteLine($"received '{item}'.");
+                }
             }
         }
     }
