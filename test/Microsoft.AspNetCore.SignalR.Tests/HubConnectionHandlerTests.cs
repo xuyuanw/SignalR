@@ -2599,6 +2599,46 @@ namespace Microsoft.AspNetCore.SignalR.Tests
             }
         }
 
+        [Fact]
+        public async Task UploadStreamReturnsDownloadStream()
+        {
+            IServiceProvider serviceProvider = HubConnectionHandlerTestUtils.CreateServiceProvider();
+            HubConnectionHandler<StreamingHub> connectionHandler = serviceProvider.GetService<HubConnectionHandler<StreamingHub>>();
+            Mock<IInvocationBinder> invocationBinder = new Mock<IInvocationBinder>();
+            invocationBinder.Setup(b => b.GetStreamItemType(It.IsAny<string>())).Returns(typeof(string));
+
+            using (TestClient client = new TestClient(invocationBinder: invocationBinder.Object))
+            {
+                Task connectionHandlerTask = await client.ConnectAsync(connectionHandler);
+
+                // Wait for a connection, or for the endpoint to fail.
+                await client.Connected.OrThrowIfOtherFails(connectionHandlerTask).OrTimeout();
+
+                var streamId = "sample_id";
+                var messagePromise = client.StreamAsync("StreamEcho", new StreamPlaceholder(streamId)).OrTimeout();
+
+                var phrases = new[] { "asdf", "qwer", "zxcv" };
+                foreach (var phrase in phrases)
+                {
+                    await client.SendHubMessageAsync(new StreamDataMessage(streamId, phrase));
+                }
+                await client.SendHubMessageAsync(new StreamCompleteMessage(streamId));
+
+                var messages = await messagePromise;
+
+                // add one because this includes the completion
+                Assert.Equal(phrases.Count() + 1, messages.Count);
+                for (var i = 0; i < phrases.Count(); i++)
+                {
+                    Assert.Equal("echo:" + phrases[i], ((StreamItemMessage)messages[i]).Item);
+                }
+
+                client.Dispose();
+
+                await connectionHandlerTask.OrTimeout();
+            }
+        }
+
         private class CustomHubActivator<THub> : IHubActivator<THub> where THub : Hub
         {
             public int ReleaseCount;
