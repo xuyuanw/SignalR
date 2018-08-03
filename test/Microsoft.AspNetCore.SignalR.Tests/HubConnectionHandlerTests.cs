@@ -2600,7 +2600,7 @@ namespace Microsoft.AspNetCore.SignalR.Tests
         }
 
         [Fact]
-        public async Task UploadStreamReturnsDownloadStream()
+        public async Task CanPassStreamingParameterToStreamHubMethod()
         {
             IServiceProvider serviceProvider = HubConnectionHandlerTestUtils.CreateServiceProvider();
             HubConnectionHandler<StreamingHub> connectionHandler = serviceProvider.GetService<HubConnectionHandler<StreamingHub>>();

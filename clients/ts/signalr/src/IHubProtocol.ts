@@ -22,8 +22,8 @@ export enum MessageType {
     Close = 7,
     /** Indicates the message is a StreamComplete message and implements the {@link StreamCompleteMessage} interface */
     StreamComplete = 8,
-    /** Indicates the message is a ParamterStreaming message and implements the {@link ParameterStreamMessage} interface */
-    ParameterStream = 9,
+    /** Indicates the message is a ParamterStreaming message and implements the {@link StreamDataMessage} interface */
+    StreamData = 9,
 }
 
 /** Defines a dictionary of string keys and string values representing headers attached to a Hub message. */
@@ -40,7 +40,7 @@ export type HubMessage = InvocationMessage |
     CancelInvocationMessage |
     PingMessage |
     CloseMessage |
-    ParameterStreamMessage;
+    StreamDataMessage;
 
 /** Defines properties common to all Hub messages. */
 export interface HubMessageBase {
@@ -95,14 +95,14 @@ export interface StreamItemMessage extends HubInvocationMessage {
 }
 
 /** A hub message representing a single stream item, transferred through a streaming parameter. */
-export interface ParameterStreamMessage extends HubMessageBase {
-    /** @inheirtDoc */
-    readonly type: MessageType.ParameterStream;
+export interface StreamDataMessage extends HubMessageBase {
+    /** @inheritDoc */
+    readonly type: MessageType.StreamData;
 
     /** The streamId */
     readonly streamId: string;
 
-    /** The item produced by the server */
+    /** The item produced by the client */
     readonly item?: any;
 }
 

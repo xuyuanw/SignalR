@@ -24,7 +24,7 @@ namespace SignalRSamples.Hubs
 
         public async Task<string> UploadWord(ChannelReader<string> source)
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
 
             // receiving a StreamCompleteMessage should cause this WaitToRead to return false
             while (await source.WaitToReadAsync())
@@ -68,12 +68,12 @@ namespace SignalRSamples.Hubs
 
         public async Task UploadFile(string filepath, ChannelReader<byte[]> source)
         {
-            IEnumerable<byte> result = Enumerable.Empty<byte>();
-            int chunk = 1;
+            var result = Enumerable.Empty<byte>();
+            var chunk = 1;
 
             while (await source.WaitToReadAsync())
             {
-                while (source.TryRead(out byte[] item))
+                while (source.TryRead(out var item))
                 {
                     Debug.WriteLine($"received chunk #{chunk++}");
                     result = result.Concat(item);  // atrocious

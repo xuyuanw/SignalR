@@ -1,9 +1,11 @@
+import { UploadStream } from "./UploadStream";
+
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 import { HandshakeProtocol, HandshakeRequestMessage, HandshakeResponseMessage } from "./HandshakeProtocol";
 import { IConnection } from "./IConnection";
-import { CancelInvocationMessage, CompletionMessage, IHubProtocol, InvocationMessage, MessageType, ParameterStreamMessage, StreamInvocationMessage, StreamItemMessage } from "./IHubProtocol";
+import { CancelInvocationMessage, CompletionMessage, IHubProtocol, InvocationMessage, MessageType, StreamDataMessage, StreamInvocationMessage, StreamItemMessage } from "./IHubProtocol";
 import { ILogger, LogLevel } from "./ILogger";
 import { IStreamResult } from "./Stream";
 import { Arg, Subject } from "./Utils";
@@ -117,7 +119,7 @@ export class HubConnection {
 
         this.logger.log(LogLevel.Information, `Using HubProtocol '${this.protocol.name}'.`);
 
-        // defensively cleanup timeout in case we receive a message from the server before we finish start
+        // defensively cleanup timeout in case we receive a message export from the server before we finish start
         this.cleanupTimeout();
         this.resetTimeoutPeriod();
         this.resetKeepAliveInterval();
@@ -231,14 +233,8 @@ export class HubConnection {
     public invoke<T = any>(methodName: string, ...args: any[]): Promise<T> {
         const invocationDescriptor = this.createInvocation(methodName, args, false);
 
-        // for (let i = 0; i < args.length; i++) {
-        //     if (args[i].name === "UploadStream") {
-        //         args[i] = args[i].asPlaceholder();
-        //     }
-        // }
-
         const p = new Promise<any>((resolve, reject) => {
-            // invocationId will always have a value for a non-blocking invocation
+            // invocationId will always have a value for a non-blocking inexport vocation
             this.callbacks[invocationDescriptor.invocationId!] = (invocationEvent: StreamItemMessage | CompletionMessage | null, error?: Error) => {
                 if (error) {
                     reject(error);
@@ -526,36 +522,11 @@ export class HubConnection {
         };
     }
 
-    public createStreamItem(id: string, item: any): ParameterStreamMessage {
+    public createStreamDataMessage(id: string, item: any): StreamDataMessage {
         return {
             item,
             streamId: id,
-            type: MessageType.ParameterStream,
+            type: MessageType.StreamData,
         };
-    }
-}
-
-class UploadStream {
-    private connection: HubConnection;
-    public readonly streamId: string;
-    constructor(connection: HubConnection) {
-        this.connection = connection;
-        this.streamId = connection.nextStreamId();
-    }
-
-    public write(item: any): Promise<void> {
-        return this.connection.sendWithProtocol(this.connection.createStreamItem(this.streamId, item));
-    }
-
-    public async complete(error?: string): Promise<void> {
-        if (error) {
-            return this.connection.sendWithProtocol({ type: MessageType.StreamComplete, streamId: this.streamId, error });
-        } else {
-            return this.connection.sendWithProtocol({ type: MessageType.StreamComplete, streamId: this.streamId });
-        }
-    }
-
-    public asPlaceholder() {
-        return {streamId: this.streamId};
     }
 }
