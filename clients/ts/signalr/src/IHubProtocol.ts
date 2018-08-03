@@ -33,14 +33,14 @@ export interface MessageHeaders {
 }
 
 /** Union type of all known Hub messages. */
-export type HubMessage = InvocationMessage |
-    StreamInvocationMessage |
-    StreamItemMessage |
-    CompletionMessage |
-    CancelInvocationMessage |
-    PingMessage |
-    CloseMessage |
-    StreamDataMessage;
+export type HubMessage = InvocationMessage
+    | StreamInvocationMessage
+    | StreamItemMessage
+    | CompletionMessage
+    | CancelInvocationMessage
+    | PingMessage
+    | CloseMessage
+    | StreamDataMessage;
 
 /** Defines properties common to all Hub messages. */
 export interface HubMessageBase {

@@ -5,10 +5,12 @@ export class UploadStream {
     private connection: HubConnection;
 
     public readonly streamId: string;
+    public readonly placeholder: object;
 
     constructor(connection: HubConnection) {
         this.connection = connection;
         this.streamId = connection.nextStreamId();
+        this.placeholder = {streamId: this.streamId};
     }
 
     public write(item: any): Promise<void> {

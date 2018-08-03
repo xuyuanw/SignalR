@@ -296,7 +296,8 @@ describe("HubConnection", () => {
                     connection.receiveHandshakeResponse();
 
                     const stream = hubConnection.newUploadStream();
-                    const invokePromise = hubConnection.invoke("testMethod", "arg", stream.asPlaceholder());
+                    const invokePromise = hubConnection.invoke("testMethod", "arg", stream.placeholder);
+
                     expect(JSON.parse(connection.sentData[0])).toEqual({
                         arguments: ["arg", {streamId: "1"}],
                         invocationId: "0",
@@ -308,13 +309,12 @@ describe("HubConnection", () => {
                     expect(JSON.parse(connection.sentData[1])).toEqual({
                         item: "item numero uno",
                         streamId: "1",
-                        type: MessageType.ParameterStream,
+                        type: MessageType.StreamData,
                     });
 
                     connection.receive({ type: MessageType.Completion, invocationId: connection.lastInvocationId, result: "foo" });
 
                     expect(await invokePromise).toBe("foo");
-
                 } finally {
                     await hubConnection.stop();
                 }
