@@ -52,7 +52,7 @@ public class HubConnection {
     private Duration keepAliveInterval = Duration.ofSeconds(15);
     private Duration serverTimeout = Duration.ofSeconds(30);
     private Duration tickRate = Duration.ofSeconds(1);
-    private CompletableSubject handshakeResponseFuture;
+    private CompletableSubject handshakeResponseSubject;
     private Duration handshakeResponseTimeout = Duration.ofSeconds(15);
     private final Logger logger = LoggerFactory.getLogger(HubConnection.class);
 
@@ -123,18 +123,18 @@ public class HubConnection {
                     handshakeResponse = HandshakeProtocol.parseHandshakeResponse(handshakeResponseString);
                 } catch (RuntimeException ex) {
                     RuntimeException exception = new RuntimeException("An invalid handshake response was received from the server.", ex);
-                    handshakeResponseFuture.onError(exception);
+                    handshakeResponseSubject.onError(exception);
                     throw exception;
                 }
                 if (handshakeResponse.getHandshakeError() != null) {
                     String errorMessage = "Error in handshake " + handshakeResponse.getHandshakeError();
                     logger.error(errorMessage);
                     RuntimeException exception = new RuntimeException(errorMessage);
-                    handshakeResponseFuture.onError(exception);
+                    handshakeResponseSubject.onError(exception);
                     throw exception;
                 }
                 handshakeReceived = true;
-                handshakeResponseFuture.onComplete();
+                handshakeResponseSubject.onComplete();
 
                 payload = payload.substring(handshakeLength);
                 // The payload only contained the handshake response so we can return.
@@ -189,9 +189,8 @@ public class HubConnection {
 
     private void timeoutHandshakeResponse(long timeout, TimeUnit unit) {
         ScheduledExecutorService scheduledThreadPool = Executors.newSingleThreadScheduledExecutor();
-        scheduledThreadPool.schedule(() -> {handshakeResponseFuture.onError(
-                new TimeoutException("Timed out waiting for the server to respond to the handshake message."));
-            }, timeout, unit);
+        scheduledThreadPool.schedule(() -> handshakeResponseSubject.onError(
+                new TimeoutException("Timed out waiting for the server to respond to the handshake message.")), timeout, unit);
     }
 
     private Single<NegotiateResponse> handleNegotiate(String url) {
@@ -239,7 +238,7 @@ public class HubConnection {
             return Completable.complete();
         }
 
-        handshakeResponseFuture = CompletableSubject.create();
+        handshakeResponseSubject = CompletableSubject.create();
         handshakeReceived = false;
         CompletableSubject tokenCompletable = CompletableSubject.create();
         accessTokenProvider.subscribe(token -> {
@@ -274,7 +273,7 @@ public class HubConnection {
 
                 return transport.send(handshake).andThen(Completable.defer(() -> {
                     timeoutHandshakeResponse(handshakeResponseTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                    return handshakeResponseFuture.andThen(Completable.defer(() -> {
+                    return handshakeResponseSubject.andThen(Completable.defer(() -> {
                         hubConnectionStateLock.lock();
                         try {
                             connectionState = new ConnectionState(this);
@@ -398,7 +397,7 @@ public class HubConnection {
             connectionState = null;
             logger.info("HubConnection stopped.");
             hubConnectionState = HubConnectionState.DISCONNECTED;
-            handshakeResponseFuture.onComplete();
+            handshakeResponseSubject.onComplete();
         } finally {
             hubConnectionStateLock.unlock();
         }
@@ -438,22 +437,18 @@ public class HubConnection {
 
         // forward the invocation result or error to the user
         // run continuations on a separate thread
-        CompletableFuture<Object> pendingCall = irq.getPendingCall();
-        pendingCall.whenCompleteAsync((result, error) -> {
-            if (error == null) {
-                // Primitive types can't be cast with the Class cast function
-                if (returnType.isPrimitive()) {
-                    subject.onSuccess((T)result);
-                } else {
-                    subject.onSuccess(returnType.cast(result));
-                }
+        Single<Object> pendingCall = irq.getPendingCall();
+        pendingCall.subscribe(result -> {
+            // Primitive types can't be cast with the Class cast function
+            if (returnType.isPrimitive()) {
+                subject.onSuccess((T)result);
             } else {
-                subject.onError(error);
+                subject.onSuccess(returnType.cast(result));
             }
-        });
+        }, error -> subject.onError(error));
 
-        // Make sure the actual send is after setting up the future otherwise there is a race
-        // where the map doesn't have the future yet when the response is returned
+        // Make sure the actual send is after setting up the callbacks otherwise there is a race
+        // where the map doesn't have the callbacks yet when the response is returned
         sendHubMessage(invocationMessage);
 
         return subject;

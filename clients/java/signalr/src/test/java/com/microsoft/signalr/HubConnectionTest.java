@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -18,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 import io.reactivex.Single;
+import io.reactivex.subjects.SingleSubject;
 
 class HubConnectionTest {
     private static final String RECORD_SEPARATOR = "\u001e";
@@ -470,15 +470,15 @@ class HubConnectionTest {
 
         hubConnection.stop();
 
-        boolean hasException = false;
+        RuntimeException hasException = null;
         try {
             result.timeout(1000, TimeUnit.MILLISECONDS).blockingGet();
             assertFalse(true);
-        } catch (CancellationException ex) {
-            hasException = true;
+        } catch (RuntimeException ex) {
+            hasException = ex;
         }
 
-        assertTrue(hasException);
+        assertEquals("Invocation was canceled.", hasException.getMessage());
     }
 
     @Test
@@ -1065,14 +1065,14 @@ class HubConnectionTest {
         HubConnection hubConnection = TestUtils.createHubConnection("http://example.com");
         hubConnection.setServerTimeout(Duration.ofMillis(1));
         hubConnection.setTickRate(Duration.ofMillis(1));
-        CompletableFuture<Exception> closedFuture = new CompletableFuture<>();
+        SingleSubject<Exception> closedSubject = SingleSubject.create();
         hubConnection.onClosed((e) -> {
-            closedFuture.complete(e);
+            closedSubject.onSuccess(e);
         });
 
         hubConnection.start().timeout(1, TimeUnit.SECONDS).blockingAwait();
 
-        assertEquals("Server timeout elapsed without receiving a message from the server.", closedFuture.get(1000, TimeUnit.MILLISECONDS).getMessage());
+        assertEquals("Server timeout elapsed without receiving a message from the server.", closedSubject.timeout(1, TimeUnit.SECONDS).blockingGet().getMessage());
     }
 
     @Test
