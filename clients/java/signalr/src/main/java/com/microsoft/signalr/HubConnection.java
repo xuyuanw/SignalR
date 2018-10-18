@@ -191,7 +191,6 @@ public class HubConnection {
         ScheduledExecutorService scheduledThreadPool = Executors.newSingleThreadScheduledExecutor();
         scheduledThreadPool.schedule(() -> {
             // If onError is called on a completed subject the global error handler is called
-            // REVIEW: Should we lock?
             if (!(handshakeResponseSubject.hasComplete() || handshakeResponseSubject.hasThrowable()))
             {
                 handshakeResponseSubject.onError(
@@ -204,7 +203,7 @@ public class HubConnection {
         HttpRequest request = new HttpRequest();
         request.addHeaders(this.headers);
 
-        return httpClient.post(Negotiate.resolveNegotiateUrl(url), request).flatMap((response) -> {
+        return httpClient.post(Negotiate.resolveNegotiateUrl(url), request).map((response) -> {
             if (response.getStatusCode() != 200) {
                 throw new RuntimeException(String.format("Unexpected status code returned from negotiate: %d %s.", response.getStatusCode(), response.getStatusText()));
             }
@@ -223,7 +222,7 @@ public class HubConnection {
                 this.headers.put("Authorization", "Bearer " + token);
             }
 
-            return Single.just(negotiateResponse);
+            return negotiateResponse;
         });
     }
 
@@ -318,8 +317,7 @@ public class HubConnection {
                 }));
             }));
         // subscribe makes this a "hot" completable so this runs immediately
-        }).subscribe(() -> start.onComplete(),
-            e -> start.onError(e));
+        }).subscribeWith(start);
 
         return start;
     }
