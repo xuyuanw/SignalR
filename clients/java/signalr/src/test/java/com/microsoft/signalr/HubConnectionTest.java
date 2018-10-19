@@ -17,7 +17,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
-import io.reactivex.Completable;
 import io.reactivex.Single;
 
 class HubConnectionTest {
@@ -904,18 +903,17 @@ class HubConnectionTest {
     }
 
     @Test
-    public void errorWhenReceivingInvokeWithIncorrectArgumentLength()  {
+    public void doesNotErrorWhenReceivingInvokeWithIncorrectArgumentLength()  {
         MockTransport mockTransport = new MockTransport();
         HubConnection hubConnection = TestUtils.createHubConnection("http://example.com", mockTransport);
         hubConnection.on("Send", (s) -> {
             assertTrue(false);
         }, String.class);
 
-        Completable startFuture = hubConnection.start();
+        hubConnection.start().blockingAwait(1000, TimeUnit.MILLISECONDS);
 
-        startFuture.blockingAwait(1000, TimeUnit.MILLISECONDS);
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> mockTransport.receiveMessage("{\"type\":1,\"target\":\"Send\",\"arguments\":[]}" + RECORD_SEPARATOR));
-        assertEquals("Invocation provides 0 argument(s) but target expects 1.", exception.getMessage());
+        mockTransport.receiveMessage("{\"type\":1,\"target\":\"Send\",\"arguments\":[]}" + RECORD_SEPARATOR);
+        hubConnection.stop();
     }
 
     @Test
